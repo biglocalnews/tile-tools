@@ -10,6 +10,7 @@ packages = [{include = "tile_tools"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 geojson = "^2.5.0"
+mercantile = "^1.2.1"
 
 
 [tool.poetry.group.dev]
