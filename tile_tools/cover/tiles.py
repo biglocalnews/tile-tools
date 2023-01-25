@@ -3,18 +3,8 @@ from typing import Optional, Tuple, Union
 
 import geojson
 
-from tile_tools.common.types import Point, Tile
+from tile_tools.common.types import Geom, Point, Tile
 from tile_tools.tilebelt.point import point_to_tile, point_to_tile_fraction
-
-# Supported geometries. This is all that @mapbox/tile-cover supports.
-Geom = Union[
-    geojson.Point,
-    geojson.MultiPoint,
-    geojson.LineString,
-    geojson.MultiLineString,
-    geojson.Polygon,
-    geojson.MultiPolygon,
-]
 
 # List of (x, y) tile coords
 Ring = list[Tuple[int, int]]
