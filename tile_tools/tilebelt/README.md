@@ -18,7 +18,7 @@ The functions have been ported to Python with some minor modifications, which I'
 
 The original package is limited by vague JavaScript primitives like `Array<number>`.
 For the most part, I've tried to use Python primitives as well.
-The most important types are just aliases `Tuple`s.
+The most important types are just aliases of `Tuple`.
 The one exception is using `geojson` for their more sophisticated types.
 
 | Type | Definition | Comments |
