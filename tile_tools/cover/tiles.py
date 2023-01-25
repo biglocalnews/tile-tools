@@ -68,16 +68,16 @@ def tiles(geom: Geom, zoom: ZoomInput) -> list[Tile]:
             raise NotImplementedError(f"Unsupported geometry type {type(geom)}")
 
     # Sync hash tiles into the tile list.
-    append_hash_tiles(tile_hash, tiles)
+    tiles = _merge_tile_data(tile_hash, tiles)
 
     # Interpolate coverage within the zoom range if requested.
     if min_zoom != max_zoom:
-        tiles = extrapolate_zoom_range(tiles, (min_zoom, max_zoom))
+        tiles = _extrapolate_zoom_range(tiles, (min_zoom, max_zoom))
 
     return tiles
 
 
-def extrapolate_zoom_range(tiles: list[Tile], zoom: ZoomRange) -> list[Tile]:
+def _extrapolate_zoom_range(tiles: list[Tile], zoom: ZoomRange) -> list[Tile]:
     """Extrapolate a set of tiles from max zoom to min zoom.
 
     Args:
@@ -157,6 +157,19 @@ def _parse_zoom(z: ZoomInput) -> ZoomRange:
             raise TypeError(f"Not sure how to interpret zoom of type {type(z)}")
 
 
+def _merge_tile_data(tile_hash: TileHash, tile_array: list[Tile]) -> list[Tile]:
+    """Merge the tile set and tile list.
+
+    Args:
+        tile_hash - Set of tiles
+        tile_array - List of (x, y, z) tiles.
+
+    Returns:
+        Merged list of tiles
+    """
+    return tile_array + list(tile_hash)
+
+
 def cover_point(lon: float, lat: float, z: int) -> TileHash:
     """Get a set containing the tile that covers the given point.
 
@@ -171,18 +184,6 @@ def cover_point(lon: float, lat: float, z: int) -> TileHash:
     """
     tile = point_to_tile((lon, lat), z)
     return {tile}
-
-
-def append_hash_tiles(tile_hash: TileHash, tile_array: list[Tile]):
-    """Decode hashed tiles and merge them into the tile_array.
-
-    Merging happens in place; the function does not return anything.
-
-    Args:
-        tile_hash - Set of tiles
-        tile_array - List of (x, y, z) tiles.
-    """
-    return tile_array + list(tile_hash)
 
 
 def polygon_cover(coords: PolygonCoords, zoom: int) -> Tuple[TileHash, list[Tile]]:
