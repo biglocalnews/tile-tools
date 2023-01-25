@@ -3,15 +3,15 @@ import geojson
 from tile_tools.common.types import Geom, Tile
 from tile_tools.tilebelt import tile_to_geojson
 
-from .tiles import tiles
+from .tiles import ZoomInput, tiles
 
 
-def geojson_tiles(geom: Geom, zoom: int) -> geojson.FeatureCollection:
+def geojson_tiles(geom: Geom, zoom: ZoomInput) -> geojson.FeatureCollection:
     """Get a FeatureCollection of tile features that cover the geometry.
 
     Args:
         geom - Geometry to cover
-        zoom - Zoom level to cover at
+        zoom - Zoom level(s) to cover
 
     Returns:
         FeatureCollection with all covering tiles as Features.

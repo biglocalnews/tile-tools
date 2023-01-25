@@ -6,6 +6,12 @@ import geojson
 from tile_tools.common.types import Geom, Point, Tile
 from tile_tools.tilebelt.point import point_to_tile, point_to_tile_fraction
 
+# Tuple of (min_zoom, max_zoom). Max zoom should be greater than min zoom.
+ZoomRange = Tuple[int, int]
+
+# Zoom input parameter, which can either be fixed or a (min, max) range.
+ZoomInput = Union[int, ZoomRange]
+
 # List of (x, y) tile coords
 Ring = list[Tuple[int, int]]
 
@@ -15,18 +21,19 @@ LineCoords = list[Union[Point, list[float]]]
 # Polygon coordinates
 PolygonCoords = list[LineCoords]
 
-# Set containing hashed tiles
-TileHash = set[int]
+# Set containing tiles. The original algorithm uses a set of reversible hashes
+# of tiles. In Python it's easier and probably as fast (or faster) to just keep
+# the original tuples in a set. The name `TileHash` has been kept from the
+# original algorithm for easier reference.
+TileHash = set[Tile]
 
 
-def tiles(geom: Geom, zoom: int) -> list[Tile]:
-    """Get minimal set of tiles covering a geometry at the zoom level.
-
-    We do not currently implement covering at a range of zoom levels.
+def tiles(geom: Geom, zoom: ZoomInput) -> list[Tile]:
+    """Get minimal set of tiles covering a geometry at given zoom level(s).
 
     Args:
         geom - geojson Geometry to cover
-        zoom - Zoom level to compute tiles for
+        zoom - Zoom level (or range) to compute tiles for
 
     Returns:
         List of (x, y, z) tiles
@@ -34,66 +41,120 @@ def tiles(geom: Geom, zoom: int) -> list[Tile]:
     tiles = list[Tile]()
     tile_hash = TileHash()
 
+    min_zoom, max_zoom = _parse_zoom(zoom)
+
     match type(geom):
         case geojson.Point:
             lng, lat = geom.coordinates
-            tile_hash = cover_point(lng, lat, zoom)
+            tile_hash = cover_point(lng, lat, max_zoom)
         case geojson.MultiPoint:
             for point in geom.coordinates:
-                phash = cover_point(point[0], point[1], zoom)
+                phash = cover_point(point[0], point[1], max_zoom)
                 tile_hash |= phash
         case geojson.LineString:
-            tile_hash, _ = line_cover(geom.coordinates, zoom)
+            tile_hash, _ = line_cover(geom.coordinates, max_zoom)
         case geojson.MultiLineString:
             for line in geom.coordinates:
-                lhash, _ = line_cover(line, zoom)
+                lhash, _ = line_cover(line, max_zoom)
                 tile_hash |= lhash
         case geojson.Polygon:
-            tile_hash, tiles = polygon_cover(geom.coordinates, zoom)
+            tile_hash, tiles = polygon_cover(geom.coordinates, max_zoom)
         case geojson.MultiPolygon:
             for poly in geom.coordinates:
-                phash, ptiles = polygon_cover(poly, zoom)
+                phash, ptiles = polygon_cover(poly, max_zoom)
                 tile_hash |= phash
                 tiles += ptiles
         case _:
             raise NotImplementedError(f"Unsupported geometry type {type(geom)}")
 
+    # Sync hash tiles into the tile list.
     append_hash_tiles(tile_hash, tiles)
+
+    # Interpolate coverage within the zoom range if requested.
+    if min_zoom != max_zoom:
+        tiles = extrapolate_zoom_range(tiles, (min_zoom, max_zoom))
+
     return tiles
 
 
-def _id(x: int, y: int, z: int) -> int:
-    """Get a hash for the tile.
-
-    The hash is reversible, so the tile can be recovered (see `_from_id`).
+def extrapolate_zoom_range(tiles: list[Tile], zoom: ZoomRange) -> list[Tile]:
+    """Extrapolate a set of tiles from max zoom to min zoom.
 
     Args:
-        x - Tile x coordinate
-        y - Tile y coordinate
-        z - Tile zoom level
+        tiles - A list of tiles at the maximum zoom range
+        zoom - Tuple of (min_zoom, max_zoom)
 
     Returns:
-        Integer representing tile
+        List of input tiles plus their corresponding tiles extrapolated across
+        the entire zoom range.
     """
-    dim = 2 * (1 << z)
-    return ((dim * y + x) * 32) + z
+    # NOTE: the JavaScript library tries to optimize by passing in the original
+    # tile hash as an argument. In practice it doesn't make a difference here
+    # because the tile hash needs to be extended to cover the entire tile list
+    # anyway. So creating the set here should have similar performance.
+    tile_hash = set(tiles)
+    final_tiles = list[Tile]()
+
+    min_zoom, max_zoom = zoom
+    z = max_zoom
+    while z > min_zoom:
+        parent_tile_hash = set[Tile]()
+        parent_tiles = list[Tile]()
+        for t in tiles:
+            if t[0] % 2 == 0 and t[1] % 2 == 0:
+                t2 = (t[0] + 1, t[1], z)
+                t3 = (t[0], t[1] + 1, z)
+                t4 = (t[0] + 1, t[1] + 1, z)
+
+                if t2 in tile_hash and t3 in tile_hash and t4 in tile_hash:
+                    tile_hash.remove(t)
+                    tile_hash.remove(t2)
+                    tile_hash.remove(t3)
+                    tile_hash.remove(t4)
+
+                    parent = (t[0] >> 1, t[1] >> 1, z - 1)
+                    if z - 1 == min_zoom:
+                        final_tiles.append(parent)
+                    else:
+                        parent_tiles.append(parent)
+                        parent_tile_hash.add(parent)
+
+        for t in tiles:
+            if t in tile_hash:
+                final_tiles.append(t)
+
+        tile_hash = parent_tile_hash
+        tiles = parent_tiles
+        z -= 1
+
+    return final_tiles
 
 
-def _from_id(id_: int) -> Tile:
-    """Reverse the hash for the tile.
+def _parse_zoom(z: ZoomInput) -> ZoomRange:
+    """Normalize zoom input.
 
     Args:
-        id_ - The tile hash
+        z - Either a fixed zoom integer or a range as a tuple.
 
     Returns:
-        Tile as (x, y, z) tuple.
+        Tuple of (zmin, zmax) integers where zmin <= zmax.
+
+    Raises:
+        ValueError if a tuple is past where zmax < zmin
+        TypeError if neither an int or a tuple is passed
     """
-    z = id_ % 32
-    dim = 2 * (1 << z)
-    xy = (id_ - z) / 32
-    x = xy % dim
-    y = ((xy - x) / dim) % dim
-    return (int(x), int(y), z)
+    match z:
+        case int():
+            return (z, z)
+        case tuple():
+            zmin, zmax = z
+            if zmin > zmax:
+                raise ValueError(
+                    f"Min zoom {zmin} can't be greater than max zoom {zmax}"
+                )
+            return (zmin, zmax)
+        case _:
+            raise TypeError(f"Not sure how to interpret zoom of type {type(z)}")
 
 
 def cover_point(lon: float, lat: float, z: int) -> TileHash:
@@ -105,11 +166,11 @@ def cover_point(lon: float, lat: float, z: int) -> TileHash:
         z - Zoom level
 
     Returns:
-        The covered tile. The tile is returned in a set as a hash, for
+        The covered tile. The tile is returned in a set, for
         consistency with other methods.
     """
     tile = point_to_tile((lon, lat), z)
-    return {_id(*tile)}
+    return {tile}
 
 
 def append_hash_tiles(tile_hash: TileHash, tile_array: list[Tile]):
@@ -118,11 +179,10 @@ def append_hash_tiles(tile_hash: TileHash, tile_array: list[Tile]):
     Merging happens in place; the function does not return anything.
 
     Args:
-        tile_hash - Set of hashed tiles
+        tile_hash - Set of tiles
         tile_array - List of (x, y, z) tiles.
     """
-    for t in tile_hash:
-        tile_array.append(_from_id(t))
+    return tile_array + list(tile_hash)
 
 
 def polygon_cover(coords: PolygonCoords, zoom: int) -> Tuple[TileHash, list[Tile]]:
@@ -134,8 +194,9 @@ def polygon_cover(coords: PolygonCoords, zoom: int) -> Tuple[TileHash, list[Tile
         zoom - Current zoom level
 
     Returns:
-        A tuple with a set of tile hashes and a list of covered tiles. The
-        hashed tiles and the tile list should be merged eventually.
+        A tuple with a set of tiles and a list of covered tiles. The tile set
+        and the tile list should be merged eventually, but are kept distinct
+        for performance reasons here.
     """
     tile_hash = TileHash()
     intersections = list[Tuple[int, int]]()
@@ -164,7 +225,7 @@ def polygon_cover(coords: PolygonCoords, zoom: int) -> Tuple[TileHash, list[Tile
         y = intersections[i][1]
         x = intersections[i][0] + 1
         while x < intersections[i + 1][0]:
-            if _id(x, y, zoom) not in tile_hash:
+            if (x, y, zoom) not in tile_hash:
                 tile_array.append((x, y, zoom))
             x += 1
 
@@ -179,7 +240,7 @@ def line_cover(line: LineCoords, zoom: int) -> Tuple[TileHash, Ring]:
         zoom - Current zoom level
 
     Returns:
-        Tuple with set of tile hashes and the coordinates ring as a list. The
+        Tuple with set of covered tiles and the coordinates ring as a list. The
         ring can be used for computing polygon cover.
     """
     tile_hash = TileHash()
@@ -212,7 +273,7 @@ def line_cover(line: LineCoords, zoom: int) -> Tuple[TileHash, Ring]:
         tdy = abs(sy / dy) if dy != 0 else math.inf
 
         if x != prev_x or y != prev_y:
-            tile_hash.add(_id(x, y, zoom))
+            tile_hash.add((x, y, zoom))
             ring.append((x, y))
             prev_x = x
             prev_y = y
@@ -225,7 +286,7 @@ def line_cover(line: LineCoords, zoom: int) -> Tuple[TileHash, Ring]:
                 tmax_y += tdy
                 y += sy
 
-            tile_hash.add(_id(x, y, zoom))
+            tile_hash.add((x, y, zoom))
             if y != prev_y:
                 ring.append((x, y))
             prev_x = x
