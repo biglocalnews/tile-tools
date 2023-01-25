@@ -3,9 +3,8 @@ from typing import Optional, Tuple, Union
 
 import geojson
 
-# Constant to convert degrees to radians
-d2r = math.pi / 180.0
-
+from tile_tools.common.types import Point, Tile
+from tile_tools.tilebelt.point import point_to_tile, point_to_tile_fraction
 
 # Supported geometries. This is all that @mapbox/tile-cover supports.
 Geom = Union[
@@ -17,17 +16,11 @@ Geom = Union[
     geojson.MultiPolygon,
 ]
 
-# Tile as (x, y, z)
-Tile = Tuple[int, int, int]
-
 # List of (x, y) tile coords
 Ring = list[Tuple[int, int]]
 
-# Coordinate as (lng, lat)
-Coord = Tuple[float, float]
-
 # Line coordinates
-LineCoords = list[Union[Coord, list[float]]]
+LineCoords = list[Union[Point, list[float]]]
 
 # Polygon coordinates
 PolygonCoords = list[LineCoords]
@@ -113,35 +106,6 @@ def _from_id(id_: int) -> Tile:
     return (int(x), int(y), z)
 
 
-def point_to_tile_fraction(lon: float, lat: float, z: int) -> Tuple[float, float, int]:
-    """Convert lng/lat point to a fractional tile coordinate."""
-    sin = math.sin(lat * d2r)
-    z2 = 2**z
-    x = z2 * (lon / 360.0 + 0.5)
-    y = z2 * (0.5 - 0.25 * math.log((1 + sin) / (1 - sin)) / math.pi)
-
-    x = x % z2
-    if x < 0:
-        x += z2
-
-    return (x, y, z)
-
-
-def point_to_tile(lon: float, lat: float, z: int) -> Tile:
-    """Find the tile that covers a given point.
-
-    Args:
-        lon - Longitude degrees
-        lat - Latitude degrees
-        z - Zoom level
-
-    Returns:
-        Tile as (x, y, z) integers.
-    """
-    fx, fy, _ = point_to_tile_fraction(lon, lat, z)
-    return (int(math.floor(fx)), int(math.floor(fy)), z)
-
-
 def cover_point(lon: float, lat: float, z: int) -> TileHash:
     """Get a set containing the tile that covers the given point.
 
@@ -154,7 +118,7 @@ def cover_point(lon: float, lat: float, z: int) -> TileHash:
         The covered tile. The tile is returned in a set as a hash, for
         consistency with other methods.
     """
-    tile = point_to_tile(lon, lat, z)
+    tile = point_to_tile((lon, lat), z)
     return {_id(*tile)}
 
 
@@ -234,8 +198,11 @@ def line_cover(line: LineCoords, zoom: int) -> Tuple[TileHash, Ring]:
     prev_y: Optional[int] = None
 
     for i in range(len(line) - 1):
-        x0, y0, _ = point_to_tile_fraction(line[i][0], line[i][1], zoom)
-        x1, y1, _ = point_to_tile_fraction(line[i + 1][0], line[i + 1][1], zoom)
+        # NOTE: we assume line coords are well-formed. It's unfortunately
+        # common for line coords to have too few or too many coordinates, in
+        # which case we might get an opaque error here.
+        x0, y0, _ = point_to_tile_fraction((line[i][0], line[i][1]), zoom)
+        x1, y1, _ = point_to_tile_fraction((line[i + 1][0], line[i + 1][1]), zoom)
         dx = x1 - x0
         dy = y1 - y0
 
@@ -249,8 +216,8 @@ def line_cover(line: LineCoords, zoom: int) -> Tuple[TileHash, Ring]:
 
         tmax_x = math.inf if not dx else abs(((1 if dx > 0 else 0) + x - x0) / dx)
         tmax_y = math.inf if not dy else abs(((1 if dy > 0 else 0) + y - y0) / dy)
-        # Note JavaScript automatically treats 0-div as infinity, so presumably
-        # the original authors are OK with this.
+        # Note JavaScript automatically treats 0-div as infinity, while Python
+        # raises an Exception. Presumably the original authors intended inf.
         tdx = abs(sx / dx) if dx != 0 else math.inf
         tdy = abs(sy / dy) if dy != 0 else math.inf
 
