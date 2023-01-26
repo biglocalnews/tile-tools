@@ -46,10 +46,10 @@ def tiles(geom: Geom, zoom: ZoomInput) -> list[Tile]:
     match type(geom):
         case geojson.Point:
             lng, lat = geom.coordinates
-            tile_hash = cover_point(lng, lat, max_zoom)
+            tile_hash = cover_point((lng, lat), max_zoom)
         case geojson.MultiPoint:
             for point in geom.coordinates:
-                phash = cover_point(point[0], point[1], max_zoom)
+                phash = cover_point((point[0], point[1]), max_zoom)
                 tile_hash |= phash
         case geojson.LineString:
             tile_hash, _ = line_cover(geom.coordinates, max_zoom)
@@ -170,19 +170,18 @@ def _merge_tile_data(tile_hash: TileHash, tile_array: list[Tile]) -> list[Tile]:
     return tile_array + list(tile_hash)
 
 
-def cover_point(lon: float, lat: float, z: int) -> TileHash:
+def cover_point(point: Point, z: int) -> TileHash:
     """Get a set containing the tile that covers the given point.
 
     Args:
-        lon - Longitude degrees
-        lat - Latitude degrees
+        point - Coordinate as (lon, lat) degrees
         z - Zoom level
 
     Returns:
         The covered tile. The tile is returned in a set, for
         consistency with other methods.
     """
-    tile = point_to_tile((lon, lat), z)
+    tile = point_to_tile(point, z)
     return {tile}
 
 
