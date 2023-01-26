@@ -1,5 +1,8 @@
 # Tile Tools
 
+[![Python Tests](https://github.com/biglocalnews/tile-tools/actions/workflows/pytest.yaml/badge.svg)](https://github.com/biglocalnews/tile-tools/actions/workflows/pytest.yaml)
+[![Python Lint](https://github.com/biglocalnews/tile-tools/actions/workflows/pylint.yaml/badge.svg)](https://github.com/biglocalnews/tile-tools/actions/workflows/pylint.yaml)
+
 Collection of tools useful for navigating Mapbox (and similar) tiles.
 
 Most of these tools were written by Mapbox in JavaScript. I've ported them into Python with minimal modification.
