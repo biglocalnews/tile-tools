@@ -82,20 +82,26 @@ def get_siblings(tile: Tile) -> list[Tile]:
     return [child for child in all_parent_children if tile != child]
 
 
-def has_siblings(tile: Tile, *siblings: list[Tile]) -> bool:
-    """Test if a given `tile` has all given `siblings`.
+def has_siblings(tile: Tile, siblings: list[Tile]) -> bool:
+    """Test if a given `tile`'s siblings match given `siblings`.
+
+    The tile itself can optionally be omitted from the siblings list and the
+    test will still return True.
 
     Args:
         tile - Current tile as (x, y, z) tuple
-        *siblings - Zero or more siblings tiles to test
+        siblings - Set of three or four siblings to test
 
     Returns:
         True if `tile` is adjacent to every member of `siblings`.
     """
-    # Optimized path for empty input, since `get_siblings` is
-    if not siblings:
-        return True
+    # Optimized path for invalid inputs
+    if len(siblings) < 3:
+        return False
 
     real_sibs = set(get_siblings(tile))
-    cand_sibs = set(siblings)
-    return cand_sibs.issubset(real_sibs)
+    # Don't consider tile itself in this test.
+    cand_sibs = {s for s in siblings if s != tile}
+    # NOTE: The logic in the original implementation is a little odd. It will
+    # return true as long as the real siblings are a subset of the input.
+    return real_sibs.issubset(cand_sibs)

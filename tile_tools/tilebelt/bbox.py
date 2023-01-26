@@ -17,8 +17,8 @@ def tile_to_bbox(tile: Tile) -> BBox:
     """
     x, y, z = tile
 
-    w, s = tile_to_point((x, y + 1, z))
-    e, n = tile_to_point((x + 1, y, z))
+    w, n = tile_to_point((x, y, z))
+    e, s = tile_to_point((x + 1, y + 1, z))
 
     return (w, s, e, n)
 

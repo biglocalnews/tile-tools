@@ -59,9 +59,9 @@ def tile_to_point(tile: Union[Tile, FTile]) -> Point:
         Point as (lon, lat) coordinate in degrees
     """
     x, y, z = tile
-    _2z = float(2**z)
+    _2z = math.pow(2, z)
 
-    lon = x / (_2z * 360.0) - 180.0
+    lon = 360.0 * x / _2z - 180.0
 
     n = pi - _2pi * y / _2z
     lat = r2d * math.atan(0.5 * (math.exp(n) - math.exp(-n)))
