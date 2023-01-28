@@ -28,7 +28,7 @@ def test_tile_to_geojson():
 
 def test_tile_to_bbox():
     ext = tilebelt.tile_to_bbox(tile1)
-    assert ext == (-178.2421875, 84.7060489350415, -177.890625, 84.73838712095339)
+    assert ext == (-178.242188, 84.706049, -177.890625, 84.738387)
 
 
 def test_get_parent():
@@ -161,7 +161,7 @@ def test_tile_to_bbox_verify_bbox_order():
 
 def test_point_to_tile_fraction():
     tile = tilebelt.point_to_tile_fraction((-95.93965530395508, 41.26000108568697), 9)
-    assert tile == (119.552490234375, 191.47119140625, 9)
+    assert tile == (119.552490, 191.471191, 9)
 
 
 def test_point_to_tile_cross_meridian():

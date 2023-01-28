@@ -1,6 +1,7 @@
 import math
 from typing import Union
 
+import tile_tools.settings
 from tile_tools.common.types import FTile, Point, Tile
 
 # Universal constants
@@ -12,7 +13,12 @@ d2r = pi / 180.0
 r2d = 180.0 / pi
 
 
-def point_to_tile_fraction(point: Point, z: int) -> FTile:
+def point_to_tile_fraction(
+    point: Point,
+    z: int,
+    precision: int = tile_tools.settings.DEFAULT_PRECISION,
+    clamp=True,
+) -> FTile:
     """Convert lng/lat point to a fractional tile coordinate.
 
     Args:
@@ -28,11 +34,12 @@ def point_to_tile_fraction(point: Point, z: int) -> FTile:
     x = _2z * (lon / 360.0 + 0.5)
     y = _2z * (0.5 - 0.25 * math.log((1 + sin) / (1 - sin)) / pi)
 
-    x = x % _2z
-    if x < 0:
-        x += _2z
+    if clamp:
+        x = x % _2z
+        if x < 0:
+            x += _2z
 
-    return (x, y, z)
+    return (round(x, precision), round(y, precision), z)
 
 
 def point_to_tile(point: Point, z: int) -> Tile:
@@ -49,7 +56,9 @@ def point_to_tile(point: Point, z: int) -> Tile:
     return (int(math.floor(fx)), int(math.floor(fy)), z)
 
 
-def tile_to_point(tile: Union[Tile, FTile]) -> Point:
+def tile_to_point(
+    tile: Union[Tile, FTile], precision: int = tile_tools.settings.DEFAULT_PRECISION
+) -> Point:
     """Convert (x, y, z) tile to (lng, lat) coordinate.
 
     Args:
@@ -66,4 +75,4 @@ def tile_to_point(tile: Union[Tile, FTile]) -> Point:
     n = pi - _2pi * y / _2z
     lat = r2d * math.atan(0.5 * (math.exp(n) - math.exp(-n)))
 
-    return (lon, lat)
+    return (round(lon, precision), round(lat, precision))
