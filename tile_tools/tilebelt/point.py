@@ -17,13 +17,17 @@ def point_to_tile_fraction(
     point: Point,
     z: int,
     precision: int = tile_tools.settings.DEFAULT_PRECISION,
-    clamp=True,
+    clamp: bool = True,
 ) -> FTile:
     """Convert lng/lat point to a fractional tile coordinate.
 
     Args:
         point - Point as (lon, lat) degrees
         z - Zoom level
+        precision - Decimal places to round to.
+        clamp - Whether to enforce bounds in the range [0, 2**z). Disabling
+        this allows negative and positive overflows, which can be useful for
+        doing math around the meridian.
 
     Returns:
         Tile as (x, y, z) where x and y are floating point numbers.
@@ -63,6 +67,7 @@ def tile_to_point(
 
     Args:
         tile - Tile as (x, y, z) tuple (either integer or fractional)
+        precision - Number of decimal places to round to.
 
     Returns:
         Point as (lon, lat) coordinate in degrees

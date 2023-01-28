@@ -6,8 +6,8 @@ from tile_tools.common.types import Point
 R = 6_371_000
 
 
-def distance(p0: Point, p1: Point, r: int = R) -> float:
-    """Smallest distance (haversine) between two points on the globe.
+def haversine(p0: Point, p1: Point, r: int = R) -> float:
+    """Smallest distance between two points on the globe.
 
     Args:
         p0 - (lon, lat) in degrees

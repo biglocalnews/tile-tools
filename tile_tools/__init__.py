@@ -3,7 +3,7 @@ import tile_tools.tilebelt as tilebelt
 
 from .common import BBox, Geom, Point, Tile
 from .coords import tilecoords2lnglat
-from .distance import distance
+from .distance import haversine
 
 __all__ = [
     "Point",
@@ -11,7 +11,7 @@ __all__ = [
     "BBox",
     "Geom",
     "cover",
-    "distance",
+    "haversine",
     "tilebelt",
     "tilecoords2lnglat",
 ]

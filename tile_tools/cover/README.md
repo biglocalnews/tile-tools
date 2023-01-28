@@ -1,15 +1,18 @@
 Cover
 ===
 
-Python port of the JavaScript package [@mapbox/tile-cover](https://github.com/mapbox/tile-cover/).
+Generate the minimal set of map tiles needed to cover an arbitrary GeoJSON geometry.
 
 # About
 
-Algorithms for generating minimal tilesets given GeoJSON geometries.
-
 The JavaScript version of this library was developed by Mapbox and released under the MIT license. See [the original license](https://github.com/mapbox/tile-cover/blob/master/LICENSE) for more information.
 
-The algorithms have been adapted to Python largely as-is, with some minor implementation and API modifications.
+This module started as a pure port into Python of that module.
+The JS package does not (at the time of writing) pass all of its unit tests,
+so after porting the library and tests, I re-implemented it using a slightly different algorithm.
+
+This new library now handles the previously failing edge cases correctly.
+It is also more flexible and can cover geometries that are technically invalid.
 
 ## Contents
 
@@ -43,4 +46,6 @@ An error will be raised if `max_zoom < min_zoom`.
 ## Benchmarks
 
 The original library in JavaScript has benchmarks.
-I haven't benchmarked this library, but it likely has similar performance characteristics, though in adapting the algorithms to Python I have used slightly different data structures.
+I haven't benchmarked this library yet.
+There is room for optimization in the covering algorithms (particularly line cover).
+I suspect the polygon cover algorithm itself has similar (or better) characteristics than the initial implementation.

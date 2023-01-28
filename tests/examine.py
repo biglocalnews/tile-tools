@@ -20,6 +20,7 @@ def gen_geojson(name: str, zoom: ZoomInput, output: str = "out.geojson"):
         geojson.Feature(
             geometry=geo,
             properties={
+                "name": "original",
                 "stroke": "#f44",
                 "fill": "#f44",
             },
@@ -27,4 +28,4 @@ def gen_geojson(name: str, zoom: ZoomInput, output: str = "out.geojson"):
     )
 
     with open(output, "w") as fh:
-        geojson.dump(g, fh)
+        geojson.dump(g, fh, indent=2)
