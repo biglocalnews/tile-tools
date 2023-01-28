@@ -18,7 +18,6 @@ import warnings
 from typing import Union
 
 import geojson
-import pytest
 import shapely
 import shapely.geometry as sg
 from turfpy.measurement import area, center
@@ -219,41 +218,22 @@ def test_degenerate_ring():
 
 
 def test_invalid_polygon_hourglass():
-    invalid = geojson.loads(
-        """{
-        "type": "Polygon",
-        "coordinates": [
-            [
-                [
-                    -12.034835815429688,
-                    8.901183448260598
-                ],
-                [
-                    -12.060413360595701,
-                    8.899826693726117
-                ],
-                [
-                    -12.036380767822266,
-                    8.873199368734273
-                ],
-                [
-                    -12.059383392333983,
-                    8.871418491385919
-                ],
-                [
-                    -12.034835815429688,
-                    8.901183448260598
-                ]
-            ]
-        ]
-    }"""
-    )
+    # NOTE: The original library tests that an error is raised when evaluating
+    # invalid shapes (in this case, "non-noded intersection"). Our library is
+    # more tolerant! We accept this invalid shape and generate tiles in what
+    # looks like the bounds / interior. The results are intuitive, see the
+    # `fixtures/hourglass_out.geojson` for the expected result.
+    invalid = fixture("hourglass")
 
-    zoom = (1, 12)
+    zoom = (1, 18)
 
-    with pytest.raises(Exception) as e:
-        cover.tiles(invalid, zoom)
-    assert str(e.value) == "Error: found non-noded intersection between ... todo"
+    assert len(cover.tiles(invalid, zoom)) == 79, "hourglass tiles"
+    assert len(cover.indexes(invalid, zoom)) == 79, "hourglass indexes"
+    compare_fixture(invalid, zoom, "hourglass_out")
+    # Unfortunately, since the shape actually is "invalid" we can't run our
+    # normal `verify_cover` routine on it, since `shapely` will complain.
+    # That's ok - just be sure to validate the `hourglass_out` fixture
+    # visually if updating the tests.
 
 
 def test_high_zoom():
