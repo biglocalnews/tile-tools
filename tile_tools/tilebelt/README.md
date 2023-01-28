@@ -6,7 +6,7 @@ Python port of the JavaScript package [@mapbox/tilebelt](https://github.com/mapb
 # About
 
 Simple utilities for working with Mapbox tiles.
-All the algorithms were released by Mapbox under the MIT License in 2014.
+The original algorithms were released by Mapbox under the MIT License in 2014.
 See [the original license](https://github.com/mapbox/tilebelt/blob/master/LICENSE) for more information.
 
 The functions have been ported to Python with some minor modifications, which I've tried to note where appropriate in the documentation.
@@ -45,8 +45,8 @@ Methods available in this package, with differences from the original `@mapbox/t
 | `tile_to_quadkey(tile: Tile) -> str` | Get the quadkey index for a tile |  |
 | `quadkey_to_tile(qk: str) -> Tile` | Get a tile from a quadkey index | Raises a `ValueError` if the quadkey is invalid. |
 | `point_to_tile(point: Point, z: int) -> Tile` | Get a tile given a lon/lat point and a zoom level | Original signature was `pointToTile(lon: number, lat: number, z: number)` |
-| `point_to_tile_fraction(point: Point, z: int) -> FTile` | Same as `point_to_tile` but returning fractional (x, y) tile coordinates. | Original signature was `pointToTileFraction(lon: number, lat: number, z: number)` |
-| `tile_to_point(tile: Union[FTile, Tile]) -> Point` | Convert a tile (either integer or fractional) to (lon, lat) coords. | This was not explicitly implemented or exported in the original. |
+| `point_to_tile_fraction(point: Point, z: int, precision: int = 6, clamp: bool = True) -> FTile` | Same as `point_to_tile` but returning fractional (x, y) tile coordinates. The fractional values are rounded to the given `precision`. Additionally, `clamp` can be set to `False` to prevent bounds-checking (allowing negative / overflowing tile values), which simplifies math around the meridian. | Original signature was `pointToTileFraction(lon: number, lat: number, z: number)` |
+| `tile_to_point(tile: Union[FTile, Tile], precision: int = 6) -> Point` | Convert a tile (either integer or fractional) to (lon, lat) coords. | This was not explicitly implemented or exported in the original. |
 
 
 ### Methods **not** implemented

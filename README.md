@@ -23,24 +23,24 @@ See the [submodule readme](tile_tools/tilebelt/README.md) for more details.
 
 Given a GeoJSON Geometry and a zoom level, generate the minimal set of Mapbox `(x, y, zoom)` tiles that cover this geometry.
 
-This is a complete Python port of Mapbox's [`@mapbox/tile-cover`](https://github.com/mapbox/tile-cover/).
+This is a re-implementation of Mapbox's [`@mapbox/tile-cover`](https://github.com/mapbox/tile-cover/).
+The implementation started out as a port, however the originally library is not passing all of its own tests.
+The API has been re-implemented here with a slightly different approach, and all of the equivalent tests are now passing.
 
 See [submodule readme](tile_tools/cover/README.md) for details.
-
-
-#### `cover.indexes(geom: Geom, zoom: int) -> list[str]`
-
-Same as `cover.tiles`, but returning tiles as quadkey string indexes.
-
-#### `cover.geojson(geom: Geom, zoom: int) -> geojson.FeatureCollection`
-
-Same as `cover.tiles`, but returning tiles as a geojson FeatureCollection.
 
 ### `coords`
 
 #### `coords.tilecoords2lnglat`
 
 Transform Mapbox's relative tile `(x, y)` coordinates into longitude/latitude degrees.
+
+
+### `distance`
+
+#### `distance.haversine`
+
+Compute the distance between two points on the globe using the haversine formula.
 
 
 ## Development

@@ -1,13 +1,24 @@
 """These tests (and fixtures) are taken from @mapbox/tile-cover.
 
-The original tests have been modified both to be more Pythonic and also to
-make more detailed assertions on each function. I produced outputs using
-the JavaScript library and used them to make assertions here.
+The original tests have been adapted for the new library. For one thing, all
+the tests now pass (which they didn't in the JS library at the time I wrote
+this). I've also corrected a few small errors in the assertions and expanded
+them to add more detail.
 
-If the outputs were relatively concise (~10 or fewer tiles) I made the
-assertion directly against the values. Otherwise the test will assert against
-the length of the expected output, and then rely on `compare_fixture` and
-`verify_cover` for more nuanced assertions.
+A few other changes:
+    - `verify_cover` and `compare_fixture` normalize inputs. This is important
+       because the original fixtures contained non-normalized coordinates such
+       as "185" and winding errors. These functions take that into
+       consideration and try as much as possible to assert on the actual
+       geometric representations of objects rather than their literal
+       definitions, which are bound to differ.
+    - The `invalid` hourglass geometry is no longer considered an expected
+      error; instead we test that we can cover the geometry despite the errors.
+    - The `polygon_out` fixture in the original library seemed visually worse
+      than the one we generated, so I've swapped in our version.
+    - Tile order is not considered relevant.
+    - Our precision is generally clamped to 6 decimal places, as recommended
+      in the GeoJSON spec.
 
 Original source:
 https://github.com/mapbox/tile-cover/blob/f5f784ec76765aabb519f139f02345b1cb5e3fe9/test/test.js
@@ -25,6 +36,10 @@ from turfpy.transformation import intersect, union
 
 import tile_tools.cover as cover
 from tile_tools.common.types import Geom
+from tile_tools.settings import DEFAULT_PRECISION
+
+# % error to accept when comparing areas of geometries.
+DEFAULT_TOLERANCE = 1.0e-7
 
 
 def test_point():
@@ -452,7 +467,9 @@ def compare_geojson(fc1: geojson.FeatureCollection, fc2: geojson.FeatureCollecti
             assert f1.properties == f2.properties
 
 
-def assert_geom_is_homomorphic(g1: Geom, g2: Geom, tolerance: float = 1.0e-7):
+def assert_geom_is_homomorphic(
+    g1: Geom, g2: Geom, tolerance: float = DEFAULT_TOLERANCE
+):
     """Check that two geometries are homomorphic.
 
     For Point geometries this is trivial. For more complicated geometries like
@@ -495,7 +512,7 @@ def assert_geom_is_homomorphic(g1: Geom, g2: Geom, tolerance: float = 1.0e-7):
             raise ValueError(f"Not sure how to test shape of type {type(g1)}")
 
 
-def norm_coords(coords, precision: int = 6):
+def norm_coords(coords, precision: int = DEFAULT_PRECISION):
     """Normalize degree coordinates into [-180, 180].
 
     Function recursively normalizes any nested lists of coordinates.
@@ -552,7 +569,7 @@ def contains(g1: Geom, g2: Geom) -> bool:
     return clean_geom(g1).covers(clean_geom(g2))
 
 
-def difference(g1: Geom, g2: Geom, precision: int = 6) -> float:
+def difference(g1: Geom, g2: Geom, precision: int = DEFAULT_PRECISION) -> float:
     """Compute difference between two geometries.
 
     This method fixes coordinates and winding order if they are incorrect.
@@ -572,7 +589,9 @@ def difference(g1: Geom, g2: Geom, precision: int = 6) -> float:
     return round(shapely.area(shapely.difference(sg1, sg2)), precision)
 
 
-def verify_cover(geom: Geom, zoom: cover.ZoomInput, tolerance: float = 1.0e-7):
+def verify_cover(
+    geom: Geom, zoom: cover.ZoomInput, tolerance: float = DEFAULT_TOLERANCE
+):
     """Verify that tileset genuinely covers the expected area.
 
     Args:
