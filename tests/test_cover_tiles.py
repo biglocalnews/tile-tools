@@ -12,20 +12,20 @@ the length of the expected output, and then rely on `compare_fixture` and
 Original source:
 https://github.com/mapbox/tile-cover/blob/f5f784ec76765aabb519f139f02345b1cb5e3fe9/test/test.js
 """
+import copy
 import os
 import warnings
 from typing import Union
 
 import geojson
 import pytest
+import shapely
 import shapely.geometry as sg
-from turfpy.measurement import area
-from turfpy.transformation import difference, intersect, union
+from turfpy.measurement import area, center
+from turfpy.transformation import intersect, union
 
 import tile_tools.cover as cover
 from tile_tools.common.types import Geom
-
-geojson.geometry.DEFAULT_PRECISION = 10
 
 
 def test_point():
@@ -450,19 +450,26 @@ def compare_geojson(fc1: geojson.FeatureCollection, fc2: geojson.FeatureCollecti
     assert len(fc1.features) == len(fc2.features), "FeatureCollections length check"
 
     # Sort features because ordering in the collection is not significant.
-    def order_feature(x):
-        name = x.properties.get("name", "")
-        coords = list(geojson.utils.coords(x))
-        return (name, *coords[0], *coords[1])
+    # Find the center of each feature to sort the collection. This gives us a
+    # reasonable chance of comparing the correct features across collections.
+    # Also put the "original" Geometry in a consistent place.
+    def order_feature(f: geojson.Feature):
+        name = f.properties.get("name", "")
+        c = center(f).geometry.coordinates
+        # Normalize coordinates to be in [-180, 180]. For whatever reason the
+        # original fixtures do not use normalized coordinates. The winding order
+        # might also be incorrect in the fixture, so don't rely on the raw
+        # coords in any way!
+        return (name, norm_coords(c))
 
-    fc1.features.sort(key=order_feature)
-    fc2.features.sort(key=order_feature)
+        fc1.features.sort(key=order_feature)
+        fc2.features.sort(key=order_feature)
 
-    for i in range(len(fc1.features)):
-        f1 = fc1.features[i]
-        f2 = fc2.features[i]
-        assert_geom_is_homomorphic(f1.geometry, f2.geometry)
-        assert f1.properties == f2.properties
+        for i in range(len(fc1.features)):
+            f1 = fc1.features[i]
+            f2 = fc2.features[i]
+            assert_geom_is_homomorphic(f1.geometry, f2.geometry)
+            assert f1.properties == f2.properties
 
 
 def assert_geom_is_homomorphic(g1: Geom, g2: Geom, tolerance: float = 1.0e-7):
@@ -502,19 +509,95 @@ def assert_geom_is_homomorphic(g1: Geom, g2: Geom, tolerance: float = 1.0e-7):
             diff = difference(g1, g2)
             if diff:
                 assert (
-                    area(diff) / area(g2) < tolerance
-                ), "Shape should be (very nearly) identical to expectation"
+                    diff / area(g2)
+                ) < tolerance, "Shape should be (very nearly) identical to expectation"
         case _:
             raise ValueError(f"Not sure how to test shape of type {type(g1)}")
 
 
-def verify_cover(geom: Geom, zoom: cover.ZoomInput, tolerance: float = 0.001):
+def norm_coords(coords, precision: int = 6):
+    """Normalize degree coordinates into [-180, 180].
+
+    Function recursively normalizes any nested lists of coordinates.
+
+    Args:
+        coords - Either a single coordinate or a list of coordinates.
+
+    Returns:
+        Normalized coordinates.
+    """
+    if isinstance(coords, float) or isinstance(coords, int):
+        coords = coords % 360
+        coords = (coords + 360) % 360
+        if coords > 180:
+            coords -= 360
+        return round(coords, precision)
+    return [norm_coords(c, precision=precision) for c in coords]
+
+
+def clean_geom(g: Geom) -> shapely.Geometry:
+    """Get a clean shapely shape from a GeoJSON geometry.
+
+    Normalizes coordinates and fixes winding order. For polygons, it also uses
+    the "buffer(0)" trick to clean up the shape and make it valid in certain
+    circumstances where it'll otherwise detect a self-intersection.
+
+    Args:
+        g - Input GeoJSON geometry
+
+    Returns:
+        Shapely geometry
+    """
+    g = copy.deepcopy(g)
+    g.coordinates = norm_coords(g.coordinates)
+
+    normed = sg.shape(g).normalize()
+    if isinstance(g, geojson.Polygon) or isinstance(g, geojson.MultiPolygon):
+        normed = normed.buffer(0)
+
+    return normed
+
+
+def contains(g1: Geom, g2: Geom) -> bool:
+    """Test if g1 contains g2.
+
+    Args:
+        g1 - Containing geometry
+        g2 - Potentially contained geometry
+
+    Returns:
+        True if g2 is inside of g1.
+    """
+    return clean_geom(g1).contains(clean_geom(g2))
+
+
+def difference(g1: Geom, g2: Geom, precision: int = 6) -> float:
+    """Compute difference between two geometries.
+
+    This method fixes coordinates and winding order if they are incorrect.
+
+    Args:
+        g1 - First geometry
+        g2 - Second geometry
+        precision - Decimal places to round to
+
+    Returns:
+        Area difference between two shapes
+    """
+    sg1 = clean_geom(g1)
+    sg2 = clean_geom(g2)
+
+    # Take difference and compute area, rounding to given precision.
+    return round(shapely.area(shapely.difference(sg1, sg2)), precision)
+
+
+def verify_cover(geom: Geom, zoom: cover.ZoomInput, tolerance: float = 1.0e-7):
     """Verify that tileset genuinely covers the expected area.
 
     Args:
         geom - GeoJSON geometry to test
         zoom - Zoom range to cover
-        tolerance - Uncovered area in m^2 to tolerate in assertion
+        tolerance - Uncovered area as a percentage of all area.
 
     Raises:
         `AssertionError` if the tileset coverage appears inaccurate.
@@ -535,25 +618,23 @@ def verify_cover(geom: Geom, zoom: cover.ZoomInput, tolerance: float = 0.001):
     # point and line geometries with polygons. The turfjs `difference` function
     # always returns `undefined` in JavaScript, and throws an error in Python.
     # We use special cases to check containment of these geometries.
-    tile_shape = sg.shape(merged_tiles.geometry)
     match type(geom):
         case geojson.Point:
-            assert tile_shape.contains(sg.Point(geom.coordinates))
+            assert contains(merged_tiles.geometry, geom)
         case geojson.MultiPoint:
             for coord in geom.coordinates:
-                assert tile_shape.contains(sg.Point(coord))
+                assert contains(merged_tiles.geometry, geojson.Point(coord))
         case geojson.LineString:
-            assert tile_shape.contains(sg.LineString(geom.coordinates))
+            assert contains(merged_tiles.geometry, geom)
         case geojson.MultiLineString:
             for line in geom.coordinates:
-                assert tile_shape.contains(sg.LineString(line))
+                assert contains(merged_tiles.geometry, geojson.LineString(line))
         case geojson.Polygon | geojson.MultiPolygon:
-            knockout = difference(geom, merged_tiles)
             # If there's any uncovered area, check that it doesn't exceed tolerance.
-            if knockout:
-                uncovered_area = area(knockout)
+            if not contains(merged_tiles.geometry, geom):
+                uncovered_area = difference(geom, merged_tiles.geometry)
                 assert (
-                    uncovered_area <= tolerance
+                    uncovered_area / area(geom) <= tolerance
                 ), f"{uncovered_area} m^2 uncovered by tiles"
         case _:
             raise ValueError(f"Not sure how to check coverage for type {type(geom)}")
