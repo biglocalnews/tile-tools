@@ -527,6 +527,7 @@ def norm_coords(coords, precision: int = 6):
         Normalized coordinates.
     """
     if isinstance(coords, float) or isinstance(coords, int):
+        # Taken from https://stackoverflow.com/a/2323034
         coords = coords % 360
         coords = (coords + 360) % 360
         if coords > 180:
@@ -568,7 +569,7 @@ def contains(g1: Geom, g2: Geom) -> bool:
     Returns:
         True if g2 is inside of g1.
     """
-    return clean_geom(g1).contains(clean_geom(g2))
+    return clean_geom(g1).covers(clean_geom(g2))
 
 
 def difference(g1: Geom, g2: Geom, precision: int = 6) -> float:
