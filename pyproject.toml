@@ -20,6 +20,8 @@ optional = true
 pre-commit = "^3.0.0"
 pytest = "^7.2.1"
 coverage = "^7.0.5"
+turfpy = "^0.0.7"
+shapely = "^2.0.0"
 
 [build-system]
 requires = ["poetry-core"]
