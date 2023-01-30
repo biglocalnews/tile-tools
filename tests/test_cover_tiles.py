@@ -29,6 +29,7 @@ import warnings
 from typing import Union
 
 import geojson
+import pytest
 import shapely
 import shapely.geometry as sg
 from turfpy.measurement import area, center
@@ -390,6 +391,14 @@ def test_0_0_polygon():
 
     compare_fixture(zero, zoom, "zero_out")
     verify_cover(zero, zoom)
+
+
+@pytest.mark.skip(reason="Need to confirm what the expected result is")
+def test_out_of_range_lat():
+    # Reported https://github.com/mapbox/tile-cover/issues/66#issuecomment-137928786
+    oor = fixture("oorlat")
+    compare_fixture(oor, 4, "oorlat_out")
+    verify_cover(oor, 4)
 
 
 ###############################################################################
