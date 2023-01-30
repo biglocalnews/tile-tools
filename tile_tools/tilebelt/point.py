@@ -34,7 +34,7 @@ def point_to_tile_fraction(
     """
     lon, lat = point
     sin = math.sin(lat * d2r)
-    _2z = 2**z
+    _2z = 1 << z
     x = _2z * (lon / 360.0 + 0.5)
     y = _2z * (0.5 - 0.25 * math.log((1 + sin) / (1 - sin)) / pi)
 
@@ -73,7 +73,7 @@ def tile_to_point(
         Point as (lon, lat) coordinate in degrees
     """
     x, y, z = tile
-    _2z = math.pow(2, z)
+    _2z = 1 << z
 
     lon = 360.0 * x / _2z - 180.0
 
