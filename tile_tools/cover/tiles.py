@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 import geojson
 
@@ -39,7 +39,9 @@ class Edge:
     im: float
 
 
-def tiles(geom: Geom, zoom: ZoomInput) -> list[Tile]:
+def tiles(
+    geom: Geom, zoom: ZoomInput, original_tiles: Optional[TileSet] = None
+) -> list[Tile]:
     """Get minimal set of tiles covering a geometry at given zoom level(s).
 
     If a range of zoom levels is given, the minimal covering set will begin at
@@ -48,11 +50,14 @@ def tiles(geom: Geom, zoom: ZoomInput) -> list[Tile]:
     Args:
         geom - geojson Geometry to cover
         zoom - Zoom level (or range) to compute tiles for
+        original_tiles - Initial TileSet to start from. This might have some
+        functional use; mostly it's here to allow passing in a `CapturingSet`
+        to help debug/visualize the algorithm.
 
     Returns:
         List of (x, y, z) tiles
     """
-    tiles = TileSet()
+    tiles = original_tiles if original_tiles is not None else TileSet()
 
     min_zoom, max_zoom = _parse_zoom(zoom)
 
