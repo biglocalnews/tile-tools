@@ -59,26 +59,26 @@ def tiles(geom: Geom, zoom: ZoomInput) -> list[Tile]:
     match type(geom):
         case geojson.Point:
             lng, lat = geom.coordinates
-            tiles |= point_cover((lng, lat), max_zoom)
+            point_cover(tiles, (lng, lat), max_zoom)
         case geojson.MultiPoint:
             for point in geom.coordinates:
-                tiles |= point_cover((point[0], point[1]), max_zoom)
+                point_cover(tiles, (point[0], point[1]), max_zoom)
         case geojson.LineString:
-            tiles |= line_cover(geom.coordinates, max_zoom)
+            line_cover(tiles, geom.coordinates, max_zoom)
         case geojson.MultiLineString:
             for line in geom.coordinates:
-                tiles |= line_cover(line, max_zoom)
+                line_cover(tiles, line, max_zoom)
         case geojson.Polygon:
-            tiles |= polygon_cover(geom.coordinates, max_zoom)
+            polygon_cover(tiles, geom.coordinates, max_zoom)
         case geojson.MultiPolygon:
             for poly in geom.coordinates:
-                tiles |= polygon_cover(poly, max_zoom)
+                polygon_cover(tiles, poly, max_zoom)
         case _:
             raise NotImplementedError(f"Unsupported geometry type {type(geom)}")
 
     # Interpolate coverage within the zoom range if requested.
     if min_zoom != max_zoom:
-        tiles = _simplify_tileset(tiles, (min_zoom, max_zoom))
+        simplify_tileset(tiles, (min_zoom, max_zoom))
 
     return [_norm_tile(t) for t in tiles]
 
@@ -103,44 +103,42 @@ def _norm_tile(t: Tile) -> Tile:
     return (x % tmax, y % tmax, z)
 
 
-def _simplify_tileset(tiles: TileSet, zoom: ZoomRange) -> TileSet:
+def simplify_tileset(tiles: TileSet, zoom: ZoomRange):
     """Reduce a tileset size by replacing coarser covering tiles if possible.
+
+    The input tiles set is updated in place, so be sure to copy it before
+    passing in if you don't want to mutate it.
 
     Args:
         tiles - A set of tiles at the maximum zoom range
         zoom - Tuple of (min_zoom, max_zoom)
-
-    Returns:
-        The simplified tiles list.
     """
-    final_tiles = set[Tile]()
-
     min_zoom, max_zoom = zoom
     z = max_zoom
     # Widen the zoom range and replace children with parents if the parents
     # cover all of the children.
+    parent_tiles = list(tiles)
     while z > min_zoom:
-        parent_tiles = set[Tile]()
-        for t in list(tiles):
+        next_parent_tiles = list[Tile]()
+        for t in parent_tiles:
+            # Only look at one tile of the four siblings. Doesn't matter which
+            # one we pick.
             if t[0] % 2 == 0 and t[1] % 2 == 0:
                 sibs = set(get_siblings(t))
                 # If t and all its siblings are contained in the tile set,
                 # then delete them and replace them with the parent tile.
                 if sibs.issubset(tiles):
+                    sibs.add(t)
                     tiles.difference_update(sibs)
-                    tiles.remove(t)
 
                     parent = get_parent(t)
-                    if (z - 1) == min_zoom:
-                        final_tiles.add(parent)
-                    else:
-                        parent_tiles.add(parent)
-
-        final_tiles |= tiles
-        tiles = parent_tiles
+                    next_parent_tiles.append(parent)
+                    tiles.add(parent)
+        # Iterate over all the new parents we found. We don't actually need to
+        # iterate over any other tiles, since we know their siblings can't
+        # possibly be in the set.
+        parent_tiles = next_parent_tiles
         z -= 1
-
-    return final_tiles
 
 
 def _parse_zoom(z: ZoomInput) -> ZoomRange:
@@ -170,17 +168,15 @@ def _parse_zoom(z: ZoomInput) -> ZoomRange:
             raise TypeError(f"Not sure how to interpret zoom of type {type(z)}")
 
 
-def point_cover(point: Point, z: int) -> TileSet:
-    """Get a set containing the tile that covers the given point.
+def point_cover(tiles: TileSet, point: Point, z: int):
+    """Get the tile containing the given point.
 
     Args:
+        tiles - The tile set to store result in
         point - Coordinate as (lon, lat) degrees
         z - Zoom level
-
-    Returns:
-        Set containing the tile containing the point.
     """
-    return {point_to_tile(point, z)}
+    tiles.add(point_to_tile(point, z))
 
 
 def _scan_edges(scanline: int, all_edges: list[Edge], active_edges: list[Edge]):
@@ -207,24 +203,21 @@ def _scan_edges(scanline: int, all_edges: list[Edge], active_edges: list[Edge]):
     all_edges[:] = all_edges[i:]
 
 
-def polygon_cover(coords: PolygonCoords, zoom: int) -> TileSet:
+def polygon_cover(tiles: TileSet, coords: PolygonCoords, zoom: int):
     """Get all the tiles covering a polygon.
 
     Adapted from https://www.cs.rit.edu/~icss571/filling/how_to.html
 
     Args:
+        tiles - Tile set where result will be stored
         coords - Polygon coordinates, as a list of lines (which are a list of
-        lng/lat coordinates).
+        lng/lat coordinates)
         zoom - Current zoom level
-
-    Returns:
-        Set of tiles that cover the polygon.
     """
-    tiles = set[Tile]()
     all_edges = list[Edge]()
     for line in coords:
         # Add line cover to ensure full coverage around the perimeter.
-        tiles |= line_cover(line, zoom)
+        line_cover(tiles, line, zoom)
 
         # Compute edge data for polygon fill
         n = len(line)
@@ -251,7 +244,7 @@ def polygon_cover(coords: PolygonCoords, zoom: int) -> TileSet:
     all_edges.sort(key=lambda e: (e.y_min, e.x))
 
     if not all_edges:
-        return tiles
+        return
 
     # Initialize scanline as minimum y value.
     active_edges = list[Edge]()
@@ -282,13 +275,12 @@ def polygon_cover(coords: PolygonCoords, zoom: int) -> TileSet:
 
     assert not all_edges and not active_edges, "All edges should have been consumed"
 
-    return tiles
 
-
-def line_cover(line: LineCoords, zoom: int, ring: bool = False) -> TileSet:
+def line_cover(tiles: TileSet, line: LineCoords, zoom: int, ring: bool = False):
     """Generate complete minimal set of tiles covering a line.
 
     Args:
+        tiles - Tile set where results will be stored
         line - Line coordinates
         zoom - Zoom level
         ring - Treat the line as a closed linear ring
@@ -296,8 +288,6 @@ def line_cover(line: LineCoords, zoom: int, ring: bool = False) -> TileSet:
     Returns:
         Set of covering tiles as (x, y, z) tuples.
     """
-    tiles = set[Tile]()
-
     # If this is a ring, need to interpolate between the last coord and the
     # first coord. If it's a normal line, reduplicate the endpoint so the
     # algorithm finishes in the right spot.
@@ -412,5 +402,3 @@ def line_cover(line: LineCoords, zoom: int, ring: bool = False) -> TileSet:
                 if yi == yti and y_delta < 0 and yti != yb:
                     yti += y_delta
                     tiles.add((xti, yti, zoom))
-
-    return tiles
