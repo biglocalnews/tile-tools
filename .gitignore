@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 tests/out.geojson
 dist/
+render.gif
+.render/

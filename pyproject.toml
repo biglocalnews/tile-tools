@@ -8,7 +8,7 @@ readme = "README.md"
 packages = [{include = "tile_tools"}]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.10,<3.12"
 geojson = "^2.5.0"
 mercantile = "^1.2.1"
 
@@ -22,6 +22,14 @@ pytest = "^7.2.1"
 coverage = "^7.0.5"
 turfpy = "^0.0.7"
 shapely = "^2.0.0"
+
+
+[tool.poetry.group.render.dependencies]
+tqdm = "^4.64.1"
+numpy = "^1.24.1"
+geopandas = "^0.12.2"
+scipy = "^1.10.0"
+geoplot = "^0.5.1"
 
 [build-system]
 requires = ["poetry-core"]

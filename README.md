@@ -42,6 +42,21 @@ Transform Mapbox's relative tile `(x, y)` coordinates into longitude/latitude de
 
 Compute the distance between two points on the globe using the haversine formula.
 
+## Rendering
+
+For debugging and general interest, the cover algorithm can be visualized with the `scripts/render.py` script.
+
+It requires that `gdal` and `ImageMagick` are installed. Then, run:
+```zsh
+poetry install --with render
+```
+
+An example usage is rendering the `degenring` test fixture at zooms 1-14.
+The output will be stored as a GIF in `render.gif`.
+
+```zsh
+cat tests/fixtures/degenring.geojson | poetry run python scripts/render.py --zmin 1 --zmax 13 --out render.gif
+```
 
 ## Development
 
@@ -50,4 +65,10 @@ Set up the environment with `poetry`:
 ```zsh
 poetry install --with dev
 poetry run pre-commit install
+```
+
+### Tests
+
+```zsh
+poetry run pytest
 ```
