@@ -104,7 +104,7 @@ def render_image(geo, ts: set[Tile], dest: str, palette=BASE_PALETTE):
         plt.close(fig)
 
 
-def render_gif(frames: list[str], out: str, last_pause: int = 30):
+def render_gif(frames: list[str], out: str, fps: int, last_pause: int = 30):
     """Render a gif from the given frames.
 
     Depends on ImageMagick's `convert` utility.
@@ -112,17 +112,23 @@ def render_gif(frames: list[str], out: str, last_pause: int = 30):
     Args:
         frames - List of images on disk containing frames, in order
         out - Output file path
+        fps - Frames per second
         last_pause - Number of times to repeat last frame to add a pause
     """
+    ticks = 100  # Number of ticks per second
+    delay = round(
+        ticks / fps
+    )  # (ticks per second) / (frames per second) = ticks per frame
     frames = frames + frames[-1:] * last_pause
-    subprocess.run(["convert", *frames, out])
+    subprocess.run(["convert", "-delay", str(int(delay)), *frames, out])
 
 
 @click.command()
 @click.option("--zmin", "-z", type=int, default=0)
 @click.option("--zmax", "-Z", type=int)
 @click.option("--out", "-o", type=str)
-def run(*, zmin: int, zmax: int, out: str):
+@click.option("--fps", "-f", type=int, default=32)
+def run(*, zmin: int, zmax: int, out: str, fps: int):
     """Render a visualization of the algorithm covering the given tiles.
 
     Args:
@@ -154,7 +160,7 @@ def run(*, zmin: int, zmax: int, out: str):
         frames.append(name)
 
     print("Rendering animation ...", file=sys.stderr)
-    render_gif(frames, out)
+    render_gif(frames, out, fps)
 
     print("Cleaning up ...", file=sys.stderr)
     shutil.rmtree(BASE_DIR)
